@@ -27,8 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import com.example.saboresdehogar.components.Screen
+import com.example.saboresdehogar.model.user.UserRole
 import com.example.saboresdehogar.ui.theme.SaboresDeHogarTheme
 import com.example.saboresdehogar.util.ValidationUtils
 import com.example.saboresdehogar.viewmodel.AuthViewModel
@@ -60,6 +62,23 @@ fun RegisterScreen(
     // Limpia el error al entrar
     LaunchedEffect(Unit) {
         authViewModel.clearAuthResponse()
+    }
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Authenticated) {
+            // Decidimos a dónde ir basado en el rol (igual que en Splash)
+            val userRole = authViewModel.currentUser.value?.role
+            val destination = if (userRole == UserRole.ADMIN) {
+                Screen.AdminProductList.route
+            } else {
+                Screen.Catalog.route
+            }
+            navController.navigate(destination) {
+                // Limpiamos toda la pila hasta el inicio para que no pueda volver a Login/Register
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                launchSingleTop = true // Evita múltiples copias del destino
+            }
+        }
     }
 
     Scaffold(

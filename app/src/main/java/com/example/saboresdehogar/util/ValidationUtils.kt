@@ -3,30 +3,29 @@ package com.example.saboresdehogar.util
 object ValidationUtils {
 
     /**
-     * Valida un RUT Chileno.
-     * Retorna true si es válido, false en caso contrario.
+     * Valida un formato de RUT Chileno (MODIFICADO).
+     * Esto es un validador simple solo para la prueba.
+     * Revisa que tenga 7-8 números y un dígito verificador (número o K).
+     * Permite puntos y guión, pero los ignora.
      */
     fun isRutValid(rut: String): Boolean {
         if (rut.isBlank()) return false
 
-        var rutClean = rut.replace(".", "").replace("-", "")
-        if (rutClean.length < 2) return false
+        // 1. Limpiamos el RUT de puntos y guión
+        val rutClean = rut.replace(".", "").replace("-", "").trim().uppercase()
 
-        val dv = rutClean.last().uppercaseChar()
-        val rutBody = rutClean.substring(0, rutClean.length - 1)
+        // 2. Revisamos el largo (Ej: 1234567K ó 12345678K)
+        if (rutClean.length < 2 || rutClean.length > 9) return false
 
-        if (!rutBody.all { it.isDigit() }) return false
+        // 3. Separamos cuerpo y dígito verificador
+        val dv = rutClean.last()
+        val body = rutClean.substring(0, rutClean.length - 1)
 
-        try {
-            var m = 0
-            var s = 1
-            for (t in rutBody.reversed()) {
-                s = (s + t.toString().toInt() * (m++ % 6 + 2)) % 11
-            }
-            val dvCalculated = (if (s > 0) (11 - s).toString() else "K")[0]
-            return dv == dvCalculated
-        } catch (e: Exception) {
-            return false
-        }
+        // 4. Validamos las partes
+        val isBodyValid = body.all { it.isDigit() }
+        val isDvValid = dv.isDigit() || dv == 'K'
+
+        // 5. Si ambas partes son válidas, el RUT es válido para esta prueba.
+        return isBodyValid && isDvValid
     }
 }

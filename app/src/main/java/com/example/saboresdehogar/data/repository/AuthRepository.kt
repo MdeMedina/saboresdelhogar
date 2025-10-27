@@ -6,19 +6,29 @@ import com.example.saboresdehogar.model.auth.RegisterRequest
 import com.example.saboresdehogar.model.auth.UserSession
 import com.example.saboresdehogar.model.user.User
 import com.example.saboresdehogar.data.source.local.LocalDataSource
+import com.example.saboresdehogar.model.user.UserRole // <-- IMPORTANTE
 import java.util.UUID
 
 class AuthRepository(private val localDataSource: LocalDataSource) {
 
     /**
-     * Login de usuario
+     * Login de usuario (MODIFICADO PARA ADMIN)
      */
     fun login(credentials: LoginCredentials): AuthResponse {
-        val user = localDataSource.getUserByEmail(credentials.email)
+        var user = localDataSource.getUserByEmail(credentials.email)
 
         return if (user != null) {
-            // En producción aquí validarías la contraseña
-            // Por ahora simplemente creamos la sesión
+
+            // --- INICIO DE LÓGICA DE ADMIN (SIMULACIÓN) ---
+            // Si el email es admin@sabores.cl, forzamos el rol de ADMIN
+            if (user.email.equals("admin@sabores.cl", ignoreCase = true)) {
+                user = user.copy(role = UserRole.ADMIN)
+            } else {
+                // Asegurarnos que cualquier otro sea CUSTOMER
+                user = user.copy(role = UserRole.CUSTOMER)
+            }
+            // --- FIN DE LÓGICA DE ADMIN ---
+
             val token = UUID.randomUUID().toString()
             val expiresAt = System.currentTimeMillis() + (24 * 60 * 60 * 1000) // 24 horas
 
@@ -60,13 +70,15 @@ class AuthRepository(private val localDataSource: LocalDataSource) {
                 errorCode = "EMAIL_EXISTS"
             )
         } else {
+            // Crear nuevo usuario (con los campos nuevos)
             val newUser = User(
                 id = UUID.randomUUID().toString(),
                 email = request.email,
                 name = request.name,
                 phone = request.phone,
                 rut = request.rut,
-                defaultAddress = request.address
+                defaultAddress = request.address,
+                role = UserRole.CUSTOMER // Todos los registros son CUSTOMER
             )
 
             // En una app real, aquí guardarías el usuario en la base de datos
@@ -91,6 +103,8 @@ class AuthRepository(private val localDataSource: LocalDataSource) {
             )
         }
     }
+
+    // ... (El resto de las funciones: getCurrentSession, isLoggedIn, logout, getCurrentUser) ...
 
     /**
      * Obtiene la sesión actual
@@ -117,6 +131,7 @@ class AuthRepository(private val localDataSource: LocalDataSource) {
      * Obtiene el usuario actual
      */
     fun getCurrentUser(): User? {
+        // Modificado para reflejar el rol de la sesión
         return getCurrentSession()?.user
     }
 }

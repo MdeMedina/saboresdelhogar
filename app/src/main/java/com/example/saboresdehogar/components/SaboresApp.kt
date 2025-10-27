@@ -8,8 +8,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import com.example.saboresdehogar.screens.CartScreen
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,29 +18,30 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.saboresdehogar.R
-// --- IMPORTAMOS LA PANTALLA CREADA ---
-import com.example.saboresdehogar.screens.LoginScreen
-import com.example.saboresdehogar.screens.RegisterScreen
-import com.example.saboresdehogar.screens.CatalogScreen
-import com.example.saboresdehogar.screens.ProductDetailScreen
-// -------------------------------------
+import com.example.saboresdehogar.model.user.UserRole
+import com.example.saboresdehogar.screens.* // Importa todas las pantallas
+import com.example.saboresdehogar.viewmodel.AuthState
 import com.example.saboresdehogar.viewmodel.AuthViewModel
 import com.example.saboresdehogar.viewmodel.CartViewModel
-import com.example.saboresdehogar.viewmodel.ViewModelFactory
 import com.example.saboresdehogar.viewmodel.MenuViewModel
+import com.example.saboresdehogar.viewmodel.OrderViewModel
+import com.example.saboresdehogar.viewmodel.ViewModelFactory
+import kotlinx.coroutines.delay
+
 // --- Definición de TODAS las rutas de la app ---
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Login : Screen("login")
     object Register : Screen("register")
-    object Home : Screen("home") // La pantalla del Moai
-    object Catalog : Screen("catalog") // El menú de productos
+    object Home : Screen("home")
+    object Catalog : Screen("catalog")
     object ProductDetail : Screen("product_detail/{productId}") {
         fun createRoute(productId: String) = "product_detail/$productId"
     }
@@ -49,7 +50,7 @@ sealed class Screen(val route: String) {
     object CheckoutFail : Screen("checkout_fail")
 
     // Rutas del Back Office
-    object AdminDashboard : Screen("admin_dashboard")
+    object AdminDashboard : Screen("admin_dashboard") // Lo dejaremos, pero sin uso
     object AdminProductList : Screen("admin_product_list")
     object AdminAddProduct : Screen("admin_add_product")
 }
@@ -61,19 +62,16 @@ fun SaboresApp() {
     val factory = ViewModelFactory(LocalContext.current)
     val authViewModel: AuthViewModel = viewModel(factory = factory)
 
-    // Observamos el estado de autenticación
-    val authState by authViewModel.authState.observeAsState()
-
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Decidimos qué pantalla mostrar
     Scaffold(
         topBar = {
-            // No mostrar TopBar en Splash, Login o Register
+            // No mostrar TopBar en Splash, Login, Register o pantallas de Admin
             if (currentRoute != Screen.Splash.route &&
                 currentRoute != Screen.Login.route &&
-                currentRoute != Screen.Register.route
+                currentRoute != Screen.Register.route &&
+                currentRoute?.startsWith("admin_") == false
             ) {
                 SaboresTopAppBar(
                     currentRoute = currentRoute,
@@ -97,8 +95,8 @@ fun SaboresApp() {
         AppNavHost(
             navController = navController,
             modifier = Modifier.padding(innerPadding),
-            authState = authState,
-            factory = factory // Pasamos el factory al NavHost
+            authViewModel = authViewModel, // Pasamos el VM
+            factory = factory
         )
     }
 }
@@ -107,32 +105,46 @@ fun SaboresApp() {
 fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    authState: com.example.saboresdehogar.viewmodel.AuthState?,
-    factory: ViewModelFactory // Recibimos el factory
+    authViewModel: AuthViewModel,
+    factory: ViewModelFactory
 ) {
-    // Definimos la ruta inicial basada en el estado de autenticación
-    val startDestination = when (authState) {
-        is com.example.saboresdehogar.viewmodel.AuthState.Authenticated -> Screen.Catalog.route
-        is com.example.saboresdehogar.viewmodel.AuthState.Unauthenticated -> Screen.Login.route
-        else -> Screen.Splash.route // Muestra Splash mientras carga
-    }
+    val authState by authViewModel.authState.observeAsState()
+    val currentUser by authViewModel.currentUser.observeAsState()
 
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = Screen.Splash.route, // <-- CAMBIO A SPLASH
         modifier = modifier
     ) {
-        // --- Flujo de Autenticación ---
+        // --- Pantalla de Ruteo ---
         composable(Screen.Splash.route) {
+            LaunchedEffect(authState, currentUser) {
+                delay(1000) // Un pequeño delay para que el estado se asiente
+                val route = when (authState) {
+                    is AuthState.Authenticated -> {
+                        if (currentUser?.role == UserRole.ADMIN) {
+                            Screen.AdminProductList.route // <-- ADMIN VA AQUÍ
+                        } else {
+                            Screen.Catalog.route // <-- CUSTOMER VA AQUÍ
+                        }
+                    }
+                    is AuthState.Unauthenticated -> Screen.Login.route
+                    else -> null // Sigue en Splash si está cargando
+                }
+
+                if (route != null) {
+                    navController.navigate(route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator() // Pantalla de carga simple
+                CircularProgressIndicator() // Pantalla de carga
             }
         }
 
+        // --- Flujo de Autenticación ---
         composable(Screen.Login.route) {
-            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
-            // Ya no es un placeholder
-            val authViewModel: AuthViewModel = viewModel(factory = factory)
             LoginScreen(
                 navController = navController,
                 authViewModel = authViewModel
@@ -140,8 +152,6 @@ fun AppNavHost(
         }
 
         composable(Screen.Register.route) {
-            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
-            val authViewModel: AuthViewModel = viewModel(factory = factory)
             RegisterScreen(
                 navController = navController,
                 authViewModel = authViewModel
@@ -150,7 +160,7 @@ fun AppNavHost(
 
         // --- Flujo Principal (Tienda) ---
         composable(Screen.Home.route) {
-            HomeScreen() // Tu pantalla de inicio con fondo Moai
+            HomeScreen()
         }
 
         composable(Screen.Catalog.route) {
@@ -163,21 +173,10 @@ fun AppNavHost(
             )
         }
 
-        composable(Screen.Cart.route) {
-            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
-            val cartViewModel: CartViewModel = viewModel(factory = factory)
-            CartScreen(
-                navController = navController,
-                cartViewModel = cartViewModel
-            )
-        }
-
         composable(Screen.ProductDetail.route) { backStackEntry ->
-            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
             val productId = backStackEntry.arguments?.getString("productId")
             val menuViewModel: MenuViewModel = viewModel(factory = factory)
             val cartViewModel: CartViewModel = viewModel(factory = factory)
-
             ProductDetailScreen(
                 navController = navController,
                 productId = productId,
@@ -186,34 +185,44 @@ fun AppNavHost(
             )
         }
 
+        composable(Screen.Cart.route) {
+            val cartViewModel: CartViewModel = viewModel(factory = factory)
+            val orderViewModel: OrderViewModel = viewModel(factory = factory)
+            CartScreen(
+                navController = navController,
+                authViewModel = authViewModel,
+                cartViewModel = cartViewModel,
+                orderViewModel = orderViewModel
+            )
+        }
+
         composable(Screen.CheckoutSuccess.route) {
-            // Aquí irá tu Pantalla de Compra Exitosa
-            PlaceholderScreen(text = "Pantalla COMPRA EXITOSA")
+            CheckoutSuccessScreen(navController = navController)
         }
 
         composable(Screen.CheckoutFail.route) {
-            // Aquí irá tu Pantalla de Compra Rechazada
-            PlaceholderScreen(text = "Pantalla COMPRA RECHAZADA")
+            CheckoutFailScreen(navController = navController)
         }
 
         // --- Flujo de Back Office ---
-        composable(Screen.AdminDashboard.route) {
-            // Aquí irá tu Pantalla de Back Office
-            PlaceholderScreen(text = "Pantalla ADMIN DASHBOARD")
-        }
-
         composable(Screen.AdminProductList.route) {
-            // Aquí irá tu Lista de Productos en Back Office
-            PlaceholderScreen(text = "Pantalla ADMIN (Lista Productos)")
+            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
+            val menuViewModel: MenuViewModel = viewModel(factory = factory)
+            AdminProductListScreen(
+                navController = navController,
+                authViewModel = authViewModel,
+                menuViewModel = menuViewModel
+            )
         }
 
         composable(Screen.AdminAddProduct.route) {
-            // Aquí irá tu Pantalla para Agregar Producto
-            PlaceholderScreen(text = "Pantalla ADMIN (Agregar Producto)")
+            // --- ¡AQUÍ ESTÁ EL CAMBIO! ---
+            AdminAddProductScreen(navController = navController)
         }
     }
 }
 
+// ... (El resto de tu SaboresTopAppBar, CartFab, y PlaceholderScreen) ...
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaboresTopAppBar(
@@ -232,7 +241,6 @@ fun SaboresTopAppBar(
         else -> ""
     }
 
-    // Mostrar flecha de "Volver" en pantallas secundarias
     val showBackButton = currentRoute != Screen.Catalog.route && currentRoute != Screen.Home.route
 
     TopAppBar(
@@ -240,7 +248,6 @@ fun SaboresTopAppBar(
             if (title.isNotEmpty()) {
                 Text(title, fontWeight = FontWeight.Bold)
             } else {
-                // Logo en la pantalla principal del catálogo
                 Image(
                     painter = painterResource(id = R.drawable.ic_launcher_foreground), // CAMBIA ESTO por tu logo
                     contentDescription = "Logo Sabores de Hogar",
@@ -300,7 +307,6 @@ fun CartFab(
     }
 }
 
-// Composable temporal para rellenar las pantallas
 @Composable
 fun PlaceholderScreen(text: String, onNavigate: (() -> Unit)? = null) {
     Box(
