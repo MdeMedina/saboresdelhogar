@@ -47,7 +47,7 @@ class AuthRepository(private val localDataSource: LocalDataSource) {
     }
 
     /**
-     * Registro de nuevo usuario
+     * Registro de nuevo usuario (CORREGIDO)
      */
     fun register(request: RegisterRequest): AuthResponse {
         // Verificar si el usuario ya existe
@@ -60,12 +60,13 @@ class AuthRepository(private val localDataSource: LocalDataSource) {
                 errorCode = "EMAIL_EXISTS"
             )
         } else {
-            // Crear nuevo usuario
             val newUser = User(
                 id = UUID.randomUUID().toString(),
                 email = request.email,
                 name = request.name,
-                phone = request.phone
+                phone = request.phone,
+                rut = request.rut,
+                defaultAddress = request.address
             )
 
             // En una app real, aquí guardarías el usuario en la base de datos

@@ -73,10 +73,17 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
 
     /**
-     * Registra un nuevo usuario
+     * Registra un nuevo usuario (MODIFICADO)
      */
-    fun register(email: String, password: String, name: String, phone: String) {
-        if (email.isBlank() || password.isBlank() || name.isBlank() || phone.isBlank()) {
+    fun register(
+        email: String,
+        password: String,
+        name: String,
+        phone: String,
+        rut: String,
+        address: String
+    ) {
+        if (email.isBlank() || password.isBlank() || name.isBlank() || phone.isBlank() || rut.isBlank() || address.isBlank()) {
             _authResponse.value = AuthResponse(
                 success = false,
                 message = "Todos los campos son requeridos",
@@ -87,7 +94,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
 
         _authState.value = AuthState.Loading
 
-        val request = RegisterRequest(email, password, name, phone)
+        val request = RegisterRequest(email, password, name, phone, rut, address)
         val response = authRepository.register(request)
 
         _authResponse.value = response

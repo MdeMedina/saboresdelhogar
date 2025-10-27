@@ -1,5 +1,7 @@
 package com.example.saboresdehogar.model.user
 
+// Dejamos esta clase preparada por si la usamos en el perfil
+// Pero para el registro usaremos un campo simple en User.
 data class Address(
     val id: String,
     val street: String,
