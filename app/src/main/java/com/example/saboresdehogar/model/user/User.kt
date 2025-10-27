@@ -10,7 +10,10 @@ data class User(
     val createdAt: Long = System.currentTimeMillis(),
     val isEmailVerified: Boolean = false,
     val addresses: List<Address> = emptyList(),
-    val favoriteItems: List<String> = emptyList()
+    val favoriteItems: List<String> = emptyList(),
+    val rut: String? = null,
+    val defaultAddress: String? = null
+    // ----------------------------------------
 ) {
     fun getDefaultAddress(): Address? {
         return addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
